@@ -71,6 +71,37 @@ function isBlockedHost(hostname: string): boolean {
   return false;
 }
 
+export type TranslateResult = { text: string } | { error: string };
+
+export async function translate(word: string): Promise<TranslateResult> {
+  if (word.trim() === "") {
+    return { error: "Enter a word" };
+  }
+
+  const apiKey = process.env.DEEPL_API_KEY;
+  if (!apiKey) {
+    return { error: "DEEPL_API_KEY is not set" };
+  }
+
+  try {
+    const res = await fetch("https://api-free.deepl.com/v2/translate", {
+      method: "POST",
+      headers: {
+        Authorization: `DeepL-Auth-Key ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: [word], source_lang: "DA", target_lang: "EN" }),
+    });
+    if (!res.ok) {
+      return { error: `DeepL request failed: ${res.status} ${res.statusText}` };
+    }
+    const data = await res.json();
+    return { text: data.translations[0].text };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Translation failed" };
+  }
+}
+
 export async function fetchRawArticle(
   _prevState: FetchResult | null,
   formData: FormData,

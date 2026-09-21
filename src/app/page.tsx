@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { fetchRawArticle, type ContentBlock, type FetchResult } from "./actions";
+import { fetchRawArticle, translate, type ContentBlock, type FetchResult } from "./actions";
 
 const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   1: "text-3xl font-semibold",
@@ -12,7 +12,7 @@ const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   6: "text-lg font-semibold",
 };
 
-type Highlight = { id: string; segmentId: string; start: number; end: number };
+type Highlight = { id: string; segmentId: string; start: number; end: number; origin: string; translation: string };
 
 // ponytail: djb2, not cryptographic — collisions are a shared highlight set
 // between two URLs, not a security issue. Fine for a localStorage key.
@@ -23,7 +23,7 @@ function hashUrl(url: string): string {
 }
 
 type MenuState =
-  | { kind: "new"; segmentId: string; start: number; end: number; left: number; top: number }
+  | { kind: "new"; segmentId: string; start: number; end: number; text: string; left: number; top: number }
   | { kind: "existing"; highlightId: string; left: number; top: number };
 
 // ponytail: walks text nodes to turn a Range boundary into a plain char
@@ -129,26 +129,40 @@ function Block({
 
 function ContextMenu({
   menu,
-  onSave,
+  highlight,
+  translating,
+  translateError,
+  onTranslate,
   onDelete,
 }: {
   menu: MenuState;
-  onSave: () => void;
+  highlight: Highlight | undefined;
+  translating: boolean;
+  translateError: string | null;
+  onTranslate: () => void;
   onDelete: () => void;
 }) {
   return (
     <div
       style={{ position: "fixed", left: menu.left, top: menu.top }}
-      className="z-50 rounded border bg-white shadow px-2 py-1"
+      className="z-50 rounded border bg-white text-zinc-900 shadow px-3 py-2 min-w-[10rem]"
     >
       {menu.kind === "new" ? (
-        <button onClick={onSave} className="text-sm text-blue-600">
-          Save
-        </button>
+        <div className="space-y-1">
+          <div className="text-sm font-medium">{menu.text}</div>
+          {translateError && <div className="text-sm text-red-600">{translateError}</div>}
+          <button onClick={onTranslate} disabled={translating} className="text-sm text-blue-600 disabled:opacity-50">
+            {translating ? "Translating…" : "Translate"}
+          </button>
+        </div>
       ) : (
-        <button onClick={onDelete} className="text-sm text-red-600">
-          Delete
-        </button>
+        <div className="space-y-1">
+          <div className="text-sm font-medium">{highlight?.origin}</div>
+          <div className="text-sm text-zinc-600">{highlight?.translation}</div>
+          <button onClick={onDelete} className="text-sm text-red-600">
+            Delete
+          </button>
+        </div>
       )}
     </div>
   );
@@ -163,6 +177,8 @@ export default function Home() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [articleUrl, setArticleUrl] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!articleUrl || !state || !("blocks" in state)) return;
@@ -204,13 +220,16 @@ export default function Home() {
       const start = textOffset(segmentEl, range.startContainer, range.startOffset);
       const end = textOffset(segmentEl, range.endContainer, range.endOffset);
       const rect = range.getBoundingClientRect();
-      setMenu({ kind: "new", segmentId, start, end, left: rect.left, top: rect.bottom + 4 });
+      const text = selection.toString();
+      setTranslateError(null);
+      setMenu({ kind: "new", segmentId, start, end, text, left: rect.left, top: rect.bottom + 4 });
       return;
     }
 
     const markEl = (e.target as HTMLElement).closest<HTMLElement>("[data-highlight-id]");
     if (markEl) {
       const rect = markEl.getBoundingClientRect();
+      setTranslateError(null);
       setMenu({ kind: "existing", highlightId: markEl.dataset.highlightId!, left: rect.left, top: rect.bottom + 4 });
       return;
     }
@@ -218,14 +237,21 @@ export default function Home() {
     setMenu(null);
   }
 
-  function saveHighlight() {
+  async function handleTranslate() {
     if (menu?.kind !== "new") return;
-    setHighlights((hs) => [
-      ...hs,
-      { id: crypto.randomUUID(), segmentId: menu.segmentId, start: menu.start, end: menu.end },
-    ]);
+    const { segmentId, start, end, text } = menu;
+    setTranslating(true);
+    setTranslateError(null);
+    const result = await translate(text);
+    setTranslating(false);
+    if ("error" in result) {
+      setTranslateError(result.error);
+      return;
+    }
+    const id = crypto.randomUUID();
+    setHighlights((hs) => [...hs, { id, segmentId, start, end, origin: text, translation: result.text }]);
     window.getSelection()?.removeAllRanges();
-    setMenu(null);
+    setMenu((m) => (m?.kind === "new" ? { kind: "existing", highlightId: id, left: m.left, top: m.top } : m));
   }
 
   function deleteHighlight() {
@@ -275,7 +301,14 @@ export default function Home() {
 
       {menu && (
         <div ref={menuRef}>
-          <ContextMenu menu={menu} onSave={saveHighlight} onDelete={deleteHighlight} />
+          <ContextMenu
+            menu={menu}
+            highlight={menu.kind === "existing" ? highlights.find((h) => h.id === menu.highlightId) : undefined}
+            translating={translating}
+            translateError={translateError}
+            onTranslate={handleTranslate}
+            onDelete={deleteHighlight}
+          />
         </div>
       )}
     </main>
