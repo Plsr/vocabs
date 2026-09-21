@@ -260,6 +260,20 @@ export default function Home() {
     setMenu(null);
   }
 
+  function exportToAnki() {
+    if (!state || !("blocks" in state)) return;
+    // ponytail: assumes origin/translation never contain a tab or newline —
+    // true for selections within a single text run. Escape if that changes.
+    const tsv = highlights.map((h) => `${h.origin}\t${h.translation}`).join("\n");
+    const blob = new Blob([tsv], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(state.title || "vocabs").replace(/[^\w-]+/g, "_")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <main className="mx-auto max-w-3xl w-full p-8">
       <h1 className="text-2xl font-semibold mb-6">Vocabs</h1>
@@ -286,6 +300,12 @@ export default function Home() {
       </form>
 
       {state && "error" in state && <p className="text-red-600">{state.error}</p>}
+
+      {state && "blocks" in state && highlights.length > 0 && (
+        <button onClick={exportToAnki} className="mb-6 rounded border px-4 py-2 text-sm">
+          Export {highlights.length} highlight{highlights.length === 1 ? "" : "s"} to Anki
+        </button>
+      )}
 
       {state && "blocks" in state && (
         <article
