@@ -2,6 +2,10 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { fetchRawArticle, translate, type ContentBlock, type FetchResult } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   1: "text-3xl font-semibold",
@@ -143,28 +147,43 @@ function ContextMenu({
   onDelete: () => void;
 }) {
   return (
-    <div
+    <Card
       style={{ position: "fixed", left: menu.left, top: menu.top }}
-      className="z-50 rounded border bg-white text-zinc-900 shadow px-3 py-2 min-w-[10rem]"
+      className="z-50 min-w-[10rem] gap-1 py-2 px-3 shadow-md"
     >
       {menu.kind === "new" ? (
         <div className="space-y-1">
           <div className="text-sm font-medium">{menu.text}</div>
-          {translateError && <div className="text-sm text-red-600">{translateError}</div>}
-          <button onClick={onTranslate} disabled={translating} className="text-sm text-blue-600 disabled:opacity-50">
+          {translateError && (
+            <Alert variant="destructive" className="border-none px-0 py-0">
+              <AlertDescription>{translateError}</AlertDescription>
+            </Alert>
+          )}
+          <Button
+            variant="link"
+            size="sm"
+            onClick={onTranslate}
+            disabled={translating}
+            className="h-auto p-0"
+          >
             {translating ? "Translating…" : "Translate"}
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="space-y-1">
           <div className="text-sm font-medium">{highlight?.origin}</div>
-          <div className="text-sm text-zinc-600">{highlight?.translation}</div>
-          <button onClick={onDelete} className="text-sm text-red-600">
+          <div className="text-sm text-muted-foreground">{highlight?.translation}</div>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={onDelete}
+            className="h-auto p-0 text-destructive"
+          >
             Delete
-          </button>
+          </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -283,28 +302,28 @@ export default function Home() {
         onSubmit={(e) => setArticleUrl(String(new FormData(e.currentTarget).get("url") ?? ""))}
         className="flex gap-2 mb-6"
       >
-        <input
+        <Input
           type="url"
           name="url"
           placeholder="https://example.com/article"
           required
-          className="flex-1 rounded border px-3 py-2"
+          className="flex-1"
         />
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending}>
           {pending ? "Fetching…" : "Fetch"}
-        </button>
+        </Button>
       </form>
 
-      {state && "error" in state && <p className="text-red-600">{state.error}</p>}
+      {state && "error" in state && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      )}
 
       {state && "blocks" in state && highlights.length > 0 && (
-        <button onClick={exportToAnki} className="mb-6 rounded border px-4 py-2 text-sm">
+        <Button variant="outline" size="sm" onClick={exportToAnki} className="mb-6">
           Export {highlights.length} highlight{highlights.length === 1 ? "" : "s"} to Anki
-        </button>
+        </Button>
       )}
 
       {state && "blocks" in state && (
