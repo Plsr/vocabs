@@ -2,23 +2,34 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+Requires Node 22, pnpm and Docker.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+cp .env.example .env.local   # then fill in BETTER_AUTH_SECRET and the GitHub OAuth values
+pnpm install
+pnpm db:up                   # Postgres in Docker on localhost:5432
+pnpm db:migrate              # apply migrations in drizzle/
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and sign in with GitHub.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### GitHub sign-in
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a GitHub OAuth App (Settings → Developer settings → OAuth Apps) with the callback URL `<BETTER_AUTH_URL>/api/auth/callback/github`. Use one app for `http://localhost:3000` and another for production. Set `ALLOWED_GITHUB_USERS` to a comma-separated list of GitHub usernames. When it is empty, any GitHub account can sign in.
+
+### Database scripts
+
+| Script | What it does |
+| --- | --- |
+| `pnpm db:up` / `pnpm db:down` | Start or stop the local Postgres container |
+| `pnpm db:generate` | Create a migration from changes to `src/db/schema.ts` |
+| `pnpm db:migrate` | Apply pending migrations to `DATABASE_URL` |
+| `pnpm db:studio` | Open Drizzle Studio |
+
+### Production (Coolify)
+
+Point `DATABASE_URL` at the Coolify Postgres resource's internal URL. Set `BETTER_AUTH_URL` to the public URL and fill in the remaining variables from `.env.example`. Run `pnpm db:migrate` against that database before deploying a schema change.
 
 ## Learn More
 
