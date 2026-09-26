@@ -11,11 +11,31 @@ export type ContentBlock =
 
 export type FetchResult = { title: string; blocks: ContentBlock[] } | { error: string };
 
+// Readability drops a wrapper div whose text is more than ~20% link text,
+// so a prose sentence like "X har været i vælten, <a>fordi …</a>" (DR wraps
+// every <p> in its own div) vanishes entirely. Flatten links inside
+// paragraphs that are mostly real prose into plain text before scoring;
+// link-only paragraphs ("Læs også: <a>…</a>") keep their links and still
+// get filtered out as cruft.
+const MIN_PROSE_SHARE = 0.3;
+
+function unwrapProseLinks(document: Document) {
+  for (const p of Array.from(document.querySelectorAll("p"))) {
+    const links = Array.from(p.querySelectorAll("a"));
+    if (links.length === 0) continue;
+    const total = p.textContent?.trim().length ?? 0;
+    const linked = links.reduce((n, a) => n + (a.textContent?.trim().length ?? 0), 0);
+    if (total === 0 || (total - linked) / total < MIN_PROSE_SHARE) continue;
+    for (const a of links) a.replaceWith(...Array.from(a.childNodes));
+  }
+}
+
 // Readability's own scoring (link density, text length, tag semantics)
 // identifies the article body and drops nav/ads/related-links cruft far
 // more reliably than a hand-rolled selector blocklist would.
 function extractArticle(html: string): { title: string; blocks: ContentBlock[] } | null {
   const { document } = parseHTML(html);
+  unwrapProseLinks(document);
   const article = new Readability(document).parse();
   if (!article?.content) return null;
 
