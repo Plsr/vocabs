@@ -2,6 +2,8 @@
 
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
 export type ContentBlock =
   | { type: "heading"; level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
@@ -91,9 +93,18 @@ function isBlockedHost(hostname: string): boolean {
   return false;
 }
 
+// Server actions are public POST endpoints, so each one checks the session
+// itself rather than relying on the page having been gated.
+async function isSignedIn(): Promise<boolean> {
+  return (await auth.api.getSession({ headers: await headers() })) !== null;
+}
+
 export type TranslateResult = { text: string } | { error: string };
 
 export async function translate(word: string): Promise<TranslateResult> {
+  if (!(await isSignedIn())) {
+    return { error: "Not signed in" };
+  }
   if (word.trim() === "") {
     return { error: "Enter a word" };
   }
@@ -126,6 +137,9 @@ export async function fetchRawArticle(
   _prevState: FetchResult | null,
   formData: FormData,
 ): Promise<FetchResult> {
+  if (!(await isSignedIn())) {
+    return { error: "Not signed in" };
+  }
   const url = formData.get("url");
   if (typeof url !== "string" || url.trim() === "") {
     return { error: "Enter a URL" };

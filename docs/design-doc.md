@@ -44,15 +44,16 @@ One Next.js app (App Router), no separate backend.
 | --- | --- | --- |
 | Translation API | DeepL API (free tier) | Best quality for European languages, 500k chars/month free — plenty for personal reading volume. Google Cloud Translation is the fallback if DeepL doesn't cover a language you need. |
 | Article extraction | `@mozilla/readability` + `linkedom` | Same library Firefox Reader View uses; `linkedom` is a lighter DOM shim than `jsdom` for a serverless-friendly build. |
-| Database | Neon (serverless Postgres, free tier) | Matches the ask for a Neon-like free DB; branching is handy for testing schema changes without a local Postgres install. |
+| Database | Postgres on the existing Coolify instance; `docker-compose.yml` for local dev | Reuses infrastructure that's already running; the local container matches production closely enough for migrations. |
 | ORM | Drizzle | Thin SQL-shaped layer, no codegen step, easy to read/audit — overkill to reach for Prisma's full engine for two tables. |
+| Auth | Better Auth, GitHub provider, Drizzle adapter | Auth.js is in maintenance mode (it joined Better Auth in 2025); Better Auth stores sessions in our Postgres through Drizzle. Sign-in is limited to `ALLOWED_GITHUB_USERS`. |
 | Deployment | Next.js standalone output, Dockerfile, on Coolify | Coolify handles the VPS orchestration; standalone output keeps the image small. |
 
-Skipped: no queue/job system for translation (a batch API call is fast enough to await inline), no auth yet (see open questions).
+Skipped: no queue/job system for translation (a batch API call is fast enough to await inline), no email/password or other providers — GitHub only.
 
 ## Open questions / Phase 2
 
-- [ ] **Auth** — single-user personal tool, or does anyone else get access? If it's just you, skip auth and rely on Coolify to keep the deployment private; add auth only if that changes.
+- [x] **Auth** — GitHub sign-in via Better Auth, restricted to an allowlist of GitHub usernames.
 - [ ] **Word form** — mark the word as it appears in the sentence (inflected), or also capture a base/lemma form for the Anki card? Affects whether the CSV needs a fifth column.
 - [ ] **Multi-word marks** — phrases/collocations, or single words only for phase 1?
 - [ ] **Article history** — keep a list of past articles to revisit, or is each article a one-off session?
