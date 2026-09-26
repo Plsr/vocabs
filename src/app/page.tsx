@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Volume2 } from "lucide-react";
 
 const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   1: "text-3xl font-semibold",
@@ -131,6 +132,37 @@ function Block({
   }
 }
 
+// ponytail: uses the browser's built-in speech synthesis. Quality depends on
+// the OS having a Danish voice installed; without one the browser falls back
+// to its default voice. Swap for a TTS API if that's not good enough.
+function speak(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "da-DK";
+  const voice = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("da"));
+  if (voice) utterance.voice = voice;
+  window.speechSynthesis.speak(utterance);
+}
+
+function WordWithSpeaker({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-sm font-medium">{text}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => speak(text)}
+        aria-label={`Pronounce ${text}`}
+        title="Pronounce"
+        className="size-6"
+      >
+        <Volume2 className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 function ContextMenu({
   menu,
   highlight,
@@ -153,7 +185,7 @@ function ContextMenu({
     >
       {menu.kind === "new" ? (
         <div className="space-y-1">
-          <div className="text-sm font-medium">{menu.text}</div>
+          <WordWithSpeaker text={menu.text} />
           {translateError && (
             <Alert variant="destructive" className="border-none px-0 py-0">
               <AlertDescription>{translateError}</AlertDescription>
@@ -171,7 +203,7 @@ function ContextMenu({
         </div>
       ) : (
         <div className="space-y-1">
-          <div className="text-sm font-medium">{highlight?.origin}</div>
+          {highlight && <WordWithSpeaker text={highlight.origin} />}
           <div className="text-sm text-muted-foreground">{highlight?.translation}</div>
           <Button
             variant="link"
