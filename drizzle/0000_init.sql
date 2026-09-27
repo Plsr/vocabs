@@ -1,0 +1,1 @@
+-- Empty baseline so `pnpm db:migrate` works before the first table exists.
