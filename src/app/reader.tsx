@@ -1,0 +1,387 @@
+"use client";
+
+import { useActionState, useEffect, useRef, useState } from "react";
+import { fetchRawArticle, translate, type ContentBlock, type FetchResult } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Volume2 } from "lucide-react";
+
+const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
+  1: "text-3xl font-semibold",
+  2: "text-2xl font-semibold",
+  3: "text-xl font-semibold",
+  4: "text-lg font-semibold",
+  5: "text-lg font-semibold",
+  6: "text-lg font-semibold",
+};
+
+type Highlight = { id: string; segmentId: string; start: number; end: number; origin: string; translation: string };
+
+// ponytail: djb2, not cryptographic — collisions are a shared highlight set
+// between two URLs, not a security issue. Fine for a localStorage key.
+function hashUrl(url: string): string {
+  let h = 5381;
+  for (let i = 0; i < url.length; i++) h = (h * 33 + url.charCodeAt(i)) | 0;
+  return `vocabs:highlights:${h}`;
+}
+
+type MenuState =
+  | { kind: "new"; segmentId: string; start: number; end: number; text: string; left: number; top: number }
+  | { kind: "existing"; highlightId: string; left: number; top: number };
+
+// ponytail: walks text nodes to turn a Range boundary into a plain char
+// offset. Assumes the boundary sits inside a text node (true for drag/
+// double-click selections); a triple-click that selects a whole element
+// gives a slightly-off offset. Upgrade if that turns out to matter.
+function textOffset(root: Node, target: Node, targetOffset: number): number {
+  if (target.nodeType !== Node.TEXT_NODE) return targetOffset;
+  let total = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (node === target) return total + targetOffset;
+    total += node.textContent?.length ?? 0;
+    node = walker.nextNode();
+  }
+  return total;
+}
+
+function splitText(text: string, ranges: Highlight[]) {
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  const parts: { text: string; id?: string }[] = [];
+  let cursor = 0;
+  for (const r of sorted) {
+    if (r.start > cursor) parts.push({ text: text.slice(cursor, r.start) });
+    parts.push({ text: text.slice(r.start, r.end), id: r.id });
+    cursor = r.end;
+  }
+  if (cursor < text.length) parts.push({ text: text.slice(cursor) });
+  return parts;
+}
+
+function HighlightedText({
+  segmentId,
+  text,
+  highlights,
+}: {
+  segmentId: string;
+  text: string;
+  highlights: Highlight[];
+}) {
+  const ranges = highlights.filter((h) => h.segmentId === segmentId);
+  const parts = ranges.length ? splitText(text, ranges) : [{ text }];
+  return (
+    <span data-segment-id={segmentId}>
+      {parts.map((p, i) =>
+        p.id ? (
+          <mark key={i} data-highlight-id={p.id} className="bg-yellow-200 cursor-pointer">
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
+function Block({
+  block,
+  index,
+  highlights,
+}: {
+  block: ContentBlock;
+  index: number;
+  highlights: Highlight[];
+}) {
+  switch (block.type) {
+    case "heading": {
+      const Tag = `h${block.level}` as const;
+      return (
+        <Tag className={HEADING_SIZE[block.level]}>
+          <HighlightedText segmentId={`${index}`} text={block.text} highlights={highlights} />
+        </Tag>
+      );
+    }
+    case "paragraph":
+      return (
+        <p>
+          <HighlightedText segmentId={`${index}`} text={block.text} highlights={highlights} />
+        </p>
+      );
+    case "blockquote":
+      return (
+        <blockquote className="border-l-4 border-zinc-300 pl-4 italic text-foreground/80">
+          <HighlightedText segmentId={`${index}`} text={block.text} highlights={highlights} />
+        </blockquote>
+      );
+    case "list": {
+      const Tag = block.ordered ? "ol" : "ul";
+      return (
+        <Tag className={block.ordered ? "list-decimal pl-6" : "list-disc pl-6"}>
+          {block.items.map((item, i) => (
+            <li key={i}>
+              <HighlightedText segmentId={`${index}:${i}`} text={item} highlights={highlights} />
+            </li>
+          ))}
+        </Tag>
+      );
+    }
+  }
+}
+
+// ponytail: uses the browser's built-in speech synthesis. Quality depends on
+// the OS having a Danish voice installed; without one the browser falls back
+// to its default voice. Swap for a TTS API if that's not good enough.
+function speak(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "da-DK";
+  const voice = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("da"));
+  if (voice) utterance.voice = voice;
+  window.speechSynthesis.speak(utterance);
+}
+
+function WordWithSpeaker({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-sm font-medium">{text}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => speak(text)}
+        aria-label={`Pronounce ${text}`}
+        title="Pronounce"
+        className="size-6"
+      >
+        <Volume2 className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function ContextMenu({
+  menu,
+  highlight,
+  translating,
+  translateError,
+  onTranslate,
+  onDelete,
+}: {
+  menu: MenuState;
+  highlight: Highlight | undefined;
+  translating: boolean;
+  translateError: string | null;
+  onTranslate: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <Card
+      style={{ position: "fixed", left: menu.left, top: menu.top }}
+      className="z-50 min-w-[10rem] gap-1 py-2 px-3 shadow-md"
+    >
+      {menu.kind === "new" ? (
+        <div className="space-y-1">
+          <WordWithSpeaker text={menu.text} />
+          {translateError && (
+            <Alert variant="destructive" className="border-none px-0 py-0">
+              <AlertDescription>{translateError}</AlertDescription>
+            </Alert>
+          )}
+          <Button
+            variant="link"
+            size="sm"
+            onClick={onTranslate}
+            disabled={translating}
+            className="h-auto p-0"
+          >
+            {translating ? "Translating…" : "Translate"}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {highlight && <WordWithSpeaker text={highlight.origin} />}
+          <div className="text-sm text-muted-foreground">{highlight?.translation}</div>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={onDelete}
+            className="h-auto p-0 text-destructive"
+          >
+            Delete
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function Reader() {
+  const [state, formAction, pending] = useActionState<FetchResult | null, FormData>(
+    fetchRawArticle,
+    null,
+  );
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [articleUrl, setArticleUrl] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!articleUrl || !state || !("blocks" in state)) return;
+    try {
+      const raw = localStorage.getItem(hashUrl(articleUrl));
+      setHighlights(raw ? JSON.parse(raw) : []);
+    } catch {
+      setHighlights([]);
+    }
+  }, [articleUrl, state]);
+
+  useEffect(() => {
+    if (!articleUrl || !state || !("blocks" in state)) return;
+    try {
+      localStorage.setItem(hashUrl(articleUrl), JSON.stringify(highlights));
+    } catch {
+      // ponytail: storage unavailable (private mode, quota) — highlights just won't persist.
+    }
+  }, [articleUrl, state, highlights]);
+
+  useEffect(() => {
+    if (!menu) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [menu]);
+
+  function handleMouseUp(e: React.MouseEvent) {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim()) {
+      const range = selection.getRangeAt(0);
+      const anchor = range.commonAncestorContainer;
+      const container = (anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor) as HTMLElement;
+      const segmentEl = container?.closest<HTMLElement>("[data-segment-id]");
+      if (!segmentEl) return;
+      const segmentId = segmentEl.dataset.segmentId!;
+      const start = textOffset(segmentEl, range.startContainer, range.startOffset);
+      const end = textOffset(segmentEl, range.endContainer, range.endOffset);
+      const rect = range.getBoundingClientRect();
+      const text = selection.toString();
+      setTranslateError(null);
+      setMenu({ kind: "new", segmentId, start, end, text, left: rect.left, top: rect.bottom + 4 });
+      return;
+    }
+
+    const markEl = (e.target as HTMLElement).closest<HTMLElement>("[data-highlight-id]");
+    if (markEl) {
+      const rect = markEl.getBoundingClientRect();
+      setTranslateError(null);
+      setMenu({ kind: "existing", highlightId: markEl.dataset.highlightId!, left: rect.left, top: rect.bottom + 4 });
+      return;
+    }
+
+    setMenu(null);
+  }
+
+  async function handleTranslate() {
+    if (menu?.kind !== "new") return;
+    const { segmentId, start, end, text } = menu;
+    setTranslating(true);
+    setTranslateError(null);
+    const result = await translate(text);
+    setTranslating(false);
+    if ("error" in result) {
+      setTranslateError(result.error);
+      return;
+    }
+    const id = crypto.randomUUID();
+    setHighlights((hs) => [...hs, { id, segmentId, start, end, origin: text, translation: result.text }]);
+    window.getSelection()?.removeAllRanges();
+    setMenu((m) => (m?.kind === "new" ? { kind: "existing", highlightId: id, left: m.left, top: m.top } : m));
+  }
+
+  function deleteHighlight() {
+    if (menu?.kind !== "existing") return;
+    setHighlights((hs) => hs.filter((h) => h.id !== menu.highlightId));
+    setMenu(null);
+  }
+
+  function exportToAnki() {
+    if (!state || !("blocks" in state)) return;
+    // ponytail: assumes origin/translation never contain a tab or newline —
+    // true for selections within a single text run. Escape if that changes.
+    const tsv = highlights.map((h) => `${h.origin}\t${h.translation}`).join("\n");
+    const blob = new Blob([tsv], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(state.title || "vocabs").replace(/[^\w-]+/g, "_")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <main className="mx-auto max-w-3xl w-full p-8">
+      <h1 className="text-2xl font-semibold mb-6">Vocabs</h1>
+
+      <form
+        action={formAction}
+        onSubmit={(e) => setArticleUrl(String(new FormData(e.currentTarget).get("url") ?? ""))}
+        className="flex gap-2 mb-6"
+      >
+        <Input
+          type="url"
+          name="url"
+          placeholder="https://example.com/article"
+          required
+          className="flex-1"
+        />
+        <Button type="submit" disabled={pending}>
+          {pending ? "Fetching…" : "Fetch"}
+        </Button>
+      </form>
+
+      {state && "error" in state && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      )}
+
+      {state && "blocks" in state && highlights.length > 0 && (
+        <Button variant="outline" size="sm" onClick={exportToAnki} className="mb-6">
+          Export {highlights.length} highlight{highlights.length === 1 ? "" : "s"} to Anki
+        </Button>
+      )}
+
+      {state && "blocks" in state && (
+        <article
+          onMouseUp={handleMouseUp}
+          className="max-w-prose space-y-4 font-serif text-lg leading-relaxed text-foreground"
+        >
+          {state.title && <h1 className="text-3xl font-semibold">{state.title}</h1>}
+          {state.blocks.map((block, i) => (
+            <Block key={i} block={block} index={i} highlights={highlights} />
+          ))}
+        </article>
+      )}
+
+      {menu && (
+        <div ref={menuRef}>
+          <ContextMenu
+            menu={menu}
+            highlight={menu.kind === "existing" ? highlights.find((h) => h.id === menu.highlightId) : undefined}
+            translating={translating}
+            translateError={translateError}
+            onTranslate={handleTranslate}
+            onDelete={deleteHighlight}
+          />
+        </div>
+      )}
+    </main>
+  );
+}
