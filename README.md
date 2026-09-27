@@ -12,7 +12,7 @@ pnpm db:migrate              # apply migrations in drizzle/
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and sign in with GitHub.
 
 ### GitHub sign-in
 
