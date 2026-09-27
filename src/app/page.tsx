@@ -17,7 +17,14 @@ const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   6: "text-lg font-semibold",
 };
 
-type Highlight = { id: string; segmentId: string; start: number; end: number; origin: string; translation: string };
+type Highlight = {
+  id: string;
+  segmentId: string;
+  start: number;
+  end: number;
+  origin: string;
+  translation: string;
+};
 
 // ponytail: djb2, not cryptographic — collisions are a shared highlight set
 // between two URLs, not a security issue. Fine for a localStorage key.
@@ -28,7 +35,15 @@ function hashUrl(url: string): string {
 }
 
 type MenuState =
-  | { kind: "new"; segmentId: string; start: number; end: number; text: string; left: number; top: number }
+  | {
+      kind: "new";
+      segmentId: string;
+      start: number;
+      end: number;
+      text: string;
+      left: number;
+      top: number;
+    }
   | { kind: "existing"; highlightId: string; left: number; top: number };
 
 // ponytail: walks text nodes to turn a Range boundary into a plain char
@@ -140,7 +155,9 @@ function speak(text: string) {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "da-DK";
-  const voice = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("da"));
+  const voice = window.speechSynthesis
+    .getVoices()
+    .find((v) => v.lang.toLowerCase().startsWith("da"));
   if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);
 }
@@ -231,24 +248,30 @@ export default function Home() {
   const [translating, setTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!articleUrl || !state || !("blocks" in state)) return;
-    try {
-      const raw = localStorage.getItem(hashUrl(articleUrl));
-      setHighlights(raw ? JSON.parse(raw) : []);
-    } catch {
-      setHighlights([]);
+  const storageKey = articleUrl && state && "blocks" in state ? hashUrl(articleUrl) : null;
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  // Load stored highlights when the article changes, during render rather than in an effect
+  // (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes).
+  if (storageKey !== loadedKey) {
+    setLoadedKey(storageKey);
+    if (storageKey) {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        setHighlights(raw ? JSON.parse(raw) : []);
+      } catch {
+        setHighlights([]);
+      }
     }
-  }, [articleUrl, state]);
+  }
 
   useEffect(() => {
-    if (!articleUrl || !state || !("blocks" in state)) return;
+    if (!storageKey) return;
     try {
-      localStorage.setItem(hashUrl(articleUrl), JSON.stringify(highlights));
+      localStorage.setItem(storageKey, JSON.stringify(highlights));
     } catch {
       // ponytail: storage unavailable (private mode, quota) — highlights just won't persist.
     }
-  }, [articleUrl, state, highlights]);
+  }, [storageKey, highlights]);
 
   useEffect(() => {
     if (!menu) return;
@@ -264,7 +287,9 @@ export default function Home() {
     if (selection && !selection.isCollapsed && selection.toString().trim()) {
       const range = selection.getRangeAt(0);
       const anchor = range.commonAncestorContainer;
-      const container = (anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor) as HTMLElement;
+      const container = (
+        anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor
+      ) as HTMLElement;
       const segmentEl = container?.closest<HTMLElement>("[data-segment-id]");
       if (!segmentEl) return;
       const segmentId = segmentEl.dataset.segmentId!;
@@ -281,7 +306,12 @@ export default function Home() {
     if (markEl) {
       const rect = markEl.getBoundingClientRect();
       setTranslateError(null);
-      setMenu({ kind: "existing", highlightId: markEl.dataset.highlightId!, left: rect.left, top: rect.bottom + 4 });
+      setMenu({
+        kind: "existing",
+        highlightId: markEl.dataset.highlightId!,
+        left: rect.left,
+        top: rect.bottom + 4,
+      });
       return;
     }
 
@@ -300,9 +330,14 @@ export default function Home() {
       return;
     }
     const id = crypto.randomUUID();
-    setHighlights((hs) => [...hs, { id, segmentId, start, end, origin: text, translation: result.text }]);
+    setHighlights((hs) => [
+      ...hs,
+      { id, segmentId, start, end, origin: text, translation: result.text },
+    ]);
     window.getSelection()?.removeAllRanges();
-    setMenu((m) => (m?.kind === "new" ? { kind: "existing", highlightId: id, left: m.left, top: m.top } : m));
+    setMenu((m) =>
+      m?.kind === "new" ? { kind: "existing", highlightId: id, left: m.left, top: m.top } : m,
+    );
   }
 
   function deleteHighlight() {
@@ -374,7 +409,11 @@ export default function Home() {
         <div ref={menuRef}>
           <ContextMenu
             menu={menu}
-            highlight={menu.kind === "existing" ? highlights.find((h) => h.id === menu.highlightId) : undefined}
+            highlight={
+              menu.kind === "existing"
+                ? highlights.find((h) => h.id === menu.highlightId)
+                : undefined
+            }
             translating={translating}
             translateError={translateError}
             onTranslate={handleTranslate}

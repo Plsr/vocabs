@@ -53,7 +53,12 @@ function extractArticle(html: string): { title: string; blocks: ContentBlock[] }
       const heading = tag.match(/^H([1-6])$/);
       const text = el.textContent?.replace(/\s+/g, " ").trim() ?? "";
       if (heading) {
-        if (text) blocks.push({ type: "heading", level: Number(heading[1]) as 1 | 2 | 3 | 4 | 5 | 6, text });
+        if (text)
+          blocks.push({
+            type: "heading",
+            level: Number(heading[1]) as 1 | 2 | 3 | 4 | 5 | 6,
+            text,
+          });
       } else if (tag === "P") {
         if (text) blocks.push({ type: "paragraph", text });
       } else if (tag === "BLOCKQUOTE") {
@@ -84,7 +89,13 @@ function isBlockedHost(hostname: string): boolean {
   const ip = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ip) {
     const [a, b] = ip.slice(1, 3).map(Number);
-    if (a === 127 || a === 10 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) {
+    if (
+      a === 127 ||
+      a === 10 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    ) {
       return true;
     }
   }
