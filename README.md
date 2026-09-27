@@ -5,7 +5,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 Requires Node 22, pnpm and Docker.
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env.local   # then fill in BETTER_AUTH_SECRET and the GitHub OAuth values
 pnpm install
 pnpm db:up                   # Postgres in Docker on localhost:5432
 pnpm db:migrate              # apply migrations in drizzle/
@@ -13,6 +13,10 @@ pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### GitHub sign-in
+
+Create a GitHub OAuth App (Settings → Developer settings → OAuth Apps) with the callback URL `<BETTER_AUTH_URL>/api/auth/callback/github`. Use one app for `http://localhost:3000` and another for production. Set `ALLOWED_GITHUB_USERS` to a comma-separated list of GitHub usernames. When it is empty, any GitHub account can sign in.
 
 ### Database scripts
 
@@ -25,7 +29,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ### Production (Coolify)
 
-Point `DATABASE_URL` at the Coolify Postgres resource's internal URL, and fill in the remaining variables from `.env.example`. Run `pnpm db:migrate` against that database before deploying a schema change.
+Point `DATABASE_URL` at the Coolify Postgres resource's internal URL. Set `BETTER_AUTH_URL` to the public URL and fill in the remaining variables from `.env.example`. Run `pnpm db:migrate` against that database before deploying a schema change.
 
 ## Learn More
 

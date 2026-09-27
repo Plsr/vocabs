@@ -23,6 +23,7 @@ fi
 
 if [ ! -f .env.local ]; then
   cp .env.example .env.local
+  sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|" .env.local
 fi
 
 pnpm db:up
