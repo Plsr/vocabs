@@ -198,10 +198,10 @@ function ContextMenu({
   return (
     <Card
       style={{ position: "fixed", left: menu.left, top: menu.top }}
-      className="z-50 min-w-[10rem] gap-1 py-2 px-3 shadow-md"
+      className="z-50 min-w-[12rem] gap-2 py-3 px-4 shadow-lg rounded-lg animate-in fade-in zoom-in-95 slide-in-from-top-1 duration-150"
     >
       {menu.kind === "new" ? (
-        <div className="space-y-1">
+        <div className="space-y-2">
           <WordWithSpeaker text={menu.text} />
           {translateError && (
             <Alert variant="destructive" className="border-none px-0 py-0">
@@ -219,17 +219,19 @@ function ContextMenu({
           </Button>
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-2">
           {highlight && <WordWithSpeaker text={highlight.origin} />}
           <div className="text-sm text-muted-foreground">{highlight?.translation}</div>
-          <Button
-            variant="link"
-            size="sm"
-            onClick={onDelete}
-            className="h-auto p-0 text-destructive"
-          >
-            Delete
-          </Button>
+          <div className="border-t pt-2">
+            <Button
+              variant="link"
+              size="sm"
+              onClick={onDelete}
+              className="h-auto p-0 text-destructive"
+            >
+              Delete
+            </Button>
+          </div>
         </div>
       )}
     </Card>
