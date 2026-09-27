@@ -44,7 +44,7 @@ One Next.js app (App Router), no separate backend.
 | --- | --- | --- |
 | Translation API | DeepL API (free tier) | Best quality for European languages, 500k chars/month free — plenty for personal reading volume. Google Cloud Translation is the fallback if DeepL doesn't cover a language you need. |
 | Article extraction | `@mozilla/readability` + `linkedom` | Same library Firefox Reader View uses; `linkedom` is a lighter DOM shim than `jsdom` for a serverless-friendly build. |
-| Database | Neon (serverless Postgres, free tier) | Matches the ask for a Neon-like free DB; branching is handy for testing schema changes without a local Postgres install. |
+| Database | Postgres on the existing Coolify instance; `docker-compose.yml` for local dev | Reuses infrastructure that's already running; the local container matches production closely enough for migrations. |
 | ORM | Drizzle | Thin SQL-shaped layer, no codegen step, easy to read/audit — overkill to reach for Prisma's full engine for two tables. |
 | Deployment | Next.js standalone output, Dockerfile, on Coolify | Coolify handles the VPS orchestration; standalone output keeps the image small. |
 
