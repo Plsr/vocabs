@@ -10,4 +10,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Local database
 
-Postgres runs in Docker (`docker-compose.yml`). Before running the app, start it and apply migrations with `pnpm db:up && pnpm db:migrate`. After changing `src/db/schema.ts`, run `pnpm db:generate` and commit the new file in `drizzle/`.
+Postgres runs in Docker (`docker-compose.yml`). Before running the app, start it and apply migrations with `pnpm db:up && pnpm db:migrate` (in Claude Code on the web, `.claude/hooks/session-start.sh` does this for you). After changing `src/db/schema.ts`, run `pnpm db:generate` and commit the new file in `drizzle/`.
