@@ -1,0 +1,15 @@
+services:
+  # Node.js service (use with: docker compose up app --build)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vocabs
+    container_name: vocabs
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DEEPL_API_KEY: ${DEEPL_API_KEY}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
