@@ -34,9 +34,7 @@
         "demo_vocabulary_word_unique": {
           "name": "demo_vocabulary_word_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "word"
-          ]
+          "columns": ["word"]
         }
       },
       "policies": {},
