@@ -1,4 +1,20 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vocabs
+      POSTGRES_PASSWORD: vocabs
+      POSTGRES_DB: vocabs
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vocabs -d vocabs"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
   # Node.js service (use with: docker compose up app --build)
   app:
     build:
@@ -10,6 +26,13 @@ services:
       NODE_ENV: production
       PORT: "3000"
       DEEPL_API_KEY: ${DEEPL_API_KEY}
+      DATABASE_URL: postgresql://vocabs:vocabs@db:5432/vocabs
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
     restart: unless-stopped
+
+volumes:
+  postgres_data:

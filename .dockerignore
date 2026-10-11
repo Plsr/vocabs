@@ -3,6 +3,7 @@
 .next
 node_modules
 coverage
+dist
 .env*
 Dockerfile
 compose.yml

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Volume2 } from "lucide-react";
+import Link from "next/link";
 
 const HEADING_SIZE: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   1: "text-3xl font-semibold",
@@ -363,6 +364,9 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-3xl w-full p-8">
       <h1 className="text-2xl font-semibold mb-6">Vocabs</h1>
+      <Link href="/database" className="inline-block underline mb-6">
+        Database demo
+      </Link>
 
       <form
         action={formAction}
