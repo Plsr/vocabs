@@ -32,7 +32,7 @@ ENV BUILD_VERSION=$RELEASE_VERSION
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN corepack enable pnpm && pnpm build
+RUN corepack enable pnpm && pnpm build && pnpm db:bundle
 
 # ============================================
 # Stage 3: Run Next.js application
@@ -56,9 +56,12 @@ RUN mkdir .next && chown node:node .next
 # COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/dist/database.cjs ./database.cjs
+COPY --from=builder --chown=node:node /app/drizzle ./drizzle
+COPY --chown=node:node scripts/start.sh ./start.sh
 
 USER node
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "start.sh"]

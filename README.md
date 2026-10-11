@@ -61,32 +61,33 @@ docker compose up -d app --build
    (for example `postgresql://USER:PASSWORD@INTERNAL_HOST:5432/DATABASE`).
    URL-encode special characters in credentials. Use the TLS settings required by
    your database; do not disable certificate verification.
-4. Apply migrations once per release from a checkout with development dependencies,
-   running `pnpm db:migrate` with `DATABASE_URL` injected securely into that process.
-   That process must have network access to the database. A local checkout cannot
-   reach Coolify's internal hostname without a tunnel or equivalent access.
-5. For this POC, run `pnpm db:seed` against the same database, then deploy/restart
-   the application and visit `/database`.
+4. Deploy the application with its default image startup command. On each deployment,
+   the container applies pending migrations before starting Next.js. No SSH checkout
+   or separate migration container is needed. Missing `DATABASE_URL`, connection
+   failures, and migration failures stop startup; inspect the application logs in Coolify.
+5. For this POC, open a terminal in the running application container in Coolify and run:
 
-Migrations and seeding are explicit operations, not application startup hooks.
-The standalone runtime image does not include the development migration tooling;
-use a checkout or dedicated release job with `pnpm install --frozen-lockfile`.
-One option is to build the Dockerfile's `builder` stage from a checkout of the release
-on the Coolify server, then run it as a one-off container on the network shared by
-the application and database:
+   ```sh
+   node database.cjs seed
+   ```
 
-```sh
-docker build --target builder -t vocabs-db-tools .
-# Bash: paste the internal database URL without adding it to shell history.
-read -rs -p 'Database URL: ' DATABASE_URL; echo
-export DATABASE_URL
-docker run --rm --network <shared-network> -e DATABASE_URL vocabs-db-tools pnpm db:setup
-unset DATABASE_URL
-```
+   This inserts the three dummy vocabulary rows and is safe to repeat. Open `/database`
+   to see them. Seeding is never run automatically during deployment.
 
-Replace `<shared-network>` with the actual shared Docker network name. This image
-includes development dependencies, scripts, and committed migrations. Subsequent
-releases usually need only `pnpm db:migrate`; `db:setup` also seeds the POC rows.
+The image contains a bundled database runner and committed migrations. GitHub Actions
+publishes the image and triggers Coolify on merge to `main`; container startup applies
+migrations. Local `pnpm dev` still uses explicit `pnpm db:setup`.
+
+A Postgres session advisory lock serializes migrations when containers start together.
+Lock acquisition waits at most 60 seconds, and migration statements have a 120-second
+limit. A failed migration prevents Next.js from starting. Drizzle tracks applied
+migrations, so restarting does not reapply them. Migration failure cannot roll back
+previously applied migrations; inspect the logs before retrying.
+
+Write future migrations so the currently running app can use the updated schema while
+Coolify replaces containers: add new columns/tables first, and remove old ones in a
+later release. Changing the database schema is not undone by rolling back the app image.
+
 Docker builds need no database URL or live database. Never put database credentials
 in build arguments or `NEXT_PUBLIC_*` variables. The demo displays only dummy rows;
 future user data will need authentication and authorization before exposure.

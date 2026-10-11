@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/database.ts migrate",
     "db:seed": "tsx scripts/database.ts seed",
-    "db:setup": "pnpm db:migrate && pnpm db:seed"
+    "db:setup": "pnpm db:migrate && pnpm db:seed",
+    "db:bundle": "esbuild scripts/database.ts --bundle --platform=node --format=cjs --outfile=dist/database.cjs"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^18.0.7",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "prettier": "^3.9.9",
