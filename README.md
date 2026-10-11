@@ -94,6 +94,13 @@ future user data will need authentication and authorization before exposure.
 
 ## Checks
 
+If the release job reports a login redirect or authentication error, verify the
+GitHub `production` environment secrets: `COOLIFY_WEBHOOK` must contain the application's
+deployment API webhook URL, and `COOLIFY_TOKEN` must contain a valid API token with
+permission to deploy that application (token only, without the `Bearer ` prefix).
+The release runner requests JSON and rejects redirects, HTML, and HTTP errors.
+An accepted request queues deployment; check Coolify's deployment logs for its outcome.
+
 ```sh
 pnpm lint
 pnpm test
